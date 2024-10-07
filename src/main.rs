@@ -8,15 +8,20 @@ fn main() {
         match stream {
             Ok(mut _stream) => {
                 let buf_reader = BufReader::new(&mut _stream);
-                let request_line = buf_reader.lines().next();
-                let response_line = match request_line {
-                    Some(line) => {
-                        match line.unwrap().as_str() {
-                            "GET / HTTP/1.1" => "HTTP/1.1 200 OK\r\n\r\n",
-                            _ => "HTTP/1.1 404 Not Found\r\n\r\n"
-                        }
+                let request_line = buf_reader.lines().next().unwrap().unwrap();
+                let response_line = match request_line.as_str() {
+                    "GET / HTTP/1.1" => "HTTP/1.1 200 OK\r\n\r\n".to_string(),
+                    line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
+                        let prefix = "GET /echo/";
+                        let suffix = "HTTP/1.1";
+                        let start = prefix.len();
+                        let end = line.len() - suffix.len();
+                        let echo_str = &line[start..end];
+                        let length = echo_str.len();
+
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", length, echo_str)
                     },
-                    None => "HTTP/1.1 404 Not Found\r\n\r\n",
+                    _ => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
                 };
 
                 _stream.write_all(response_line.as_bytes()).unwrap();
