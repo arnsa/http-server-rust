@@ -15,11 +15,11 @@ fn main() {
                         let prefix = "GET /echo/";
                         let suffix = "HTTP/1.1";
                         let start = prefix.len();
-                        let end = line.len() - suffix.len();
+                        let end = line.len() - suffix.len() - 1;
                         let echo_str = &line[start..end];
                         let length = echo_str.len();
 
-                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", length, echo_str)
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{echo_str}")
                     },
                     _ => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
                 };
