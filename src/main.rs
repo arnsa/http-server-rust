@@ -14,19 +14,25 @@ fn main() {
                     .take_while(|line| !line.is_empty())
                     .collect();
 
-                if request.len() < 4 {
-                    return;
+                if request.len() == 0 {
+                    continue;
                 }
 
                 let request_line = &request[0];
-                let user_agent = &request[3];
 
                 let response_line = match request_line.as_str() {
                     "GET / HTTP/1.1" => "HTTP/1.1 200 OK\r\n\r\n".to_string(),
                     "GET /user-agent HTTP/1.1" => {
-                        let length = user_agent.len();
+                        let user_agent = request.iter().find(|line| line.contains("User-Agent:"));
 
-                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}")
+                        if user_agent.is_none() {
+                            continue;
+                        }
+
+                        let response = user_agent.unwrap().replace("User-Agent: ", "");
+                        let length = response.len();
+
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{response}")
                     },
                     line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
                         let prefix = "GET /echo/";
