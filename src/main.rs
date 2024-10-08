@@ -8,9 +8,26 @@ fn main() {
         match stream {
             Ok(mut _stream) => {
                 let buf_reader = BufReader::new(&mut _stream);
-                let request_line = buf_reader.lines().next().unwrap().unwrap();
+                let request: Vec<_> = buf_reader
+                    .lines()
+                    .map(|line| line.unwrap())
+                    .take_while(|line| !line.is_empty())
+                    .collect();
+
+                if request.len() < 4 {
+                    return;
+                }
+
+                let request_line = &request[0];
+                let user_agent = &request[3];
+
                 let response_line = match request_line.as_str() {
                     "GET / HTTP/1.1" => "HTTP/1.1 200 OK\r\n\r\n".to_string(),
+                    "GET /user-agent HTTP/1.1" => {
+                        let length = user_agent.len();
+
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}")
+                    },
                     line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
                         let prefix = "GET /echo/";
                         let suffix = "HTTP/1.1";
