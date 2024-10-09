@@ -53,9 +53,19 @@ fn handle_connection(mut stream: TcpStream) {
         },
         line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
             let echo_str = parse_file_name_from_url(&line, "GET /echo/");
+            let accept_encoding = request.iter().find(|x| x.contains("Accept-Encoding"));
             let length = echo_str.len();
+            let mut content_encoding = String::new();
 
-            format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{echo_str}")
+            if let Some(encoding) = accept_encoding {
+                let encoding = encoding.split("Accept-Encoding: ").nth(1).unwrap();
+
+                if encoding == "gzip" {
+                    content_encoding = format!("\r\nContent-Encoding: {encoding}\r\n");
+                }
+            };
+
+            format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain{content_encoding}\r\nContent-Length: {length}\r\n\r\n{echo_str}")
         },
         line if line.starts_with("GET /files/") && line.ends_with("HTTP/1.1") => {
             let file_name = parse_file_name_from_url(&line, "GET /files/");
