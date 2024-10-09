@@ -60,8 +60,8 @@ fn handle_connection(mut stream: TcpStream) {
             if let Some(encoding) = accept_encoding {
                 let encoding = encoding.split("Accept-Encoding: ").nth(1).unwrap();
 
-                if encoding == "gzip" {
-                    content_encoding = format!("\r\nContent-Encoding: {encoding}\r\n");
+                if encoding.contains("gzip") {
+                    content_encoding = format!("\r\nContent-Encoding: gzip\r\n");
                 }
             };
 
