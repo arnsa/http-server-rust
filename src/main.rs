@@ -1,5 +1,5 @@
 use std::{env, fs};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -26,20 +26,18 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let buf_reader = BufReader::new(&mut stream);
-    let request: Vec<_> = buf_reader
-        .lines()
-        .map(|line| line.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect();
+    let mut buffer = [0; 1024];
+    let _ = stream.read(&mut buffer);
+    let request = String::from_utf8_lossy(&buffer);
+    let request = request.split("\r\n").collect::<Vec<&str>>();
 
     if request.len() == 0 {
         return;
     }
 
-    let request_line = &request[0];
+    let request_line = request[0];
 
-    let response_line = match request_line.as_str() {
+    let response_line = match request_line {
         "GET / HTTP/1.1" => "HTTP/1.1 200 OK\r\n\r\n".to_string(),
         "GET /user-agent HTTP/1.1" => {
             let user_agent = request.iter().find(|line| line.contains("User-Agent:"));
@@ -54,30 +52,14 @@ fn handle_connection(mut stream: TcpStream) {
             format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{response}")
         },
         line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
-            let prefix = "GET /echo/";
-            let suffix = "HTTP/1.1";
-            let start = prefix.len();
-            let end = line.len() - suffix.len() - 1;
-            let echo_str = &line[start..end];
+            let echo_str = parse_file_name_from_url(&line, "GET /echo/");
             let length = echo_str.len();
 
             format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{echo_str}")
         },
         line if line.starts_with("GET /files/") && line.ends_with("HTTP/1.1") => {
-            let prefix = "GET /files/";
-            let suffix = "HTTP/1.1";
-            let start = prefix.len();
-            let end = line.len() - suffix.len() - 1;
-            let file_name = &line[start..end];
-
-            let args: Vec<String> = env::args().collect();
-            let mut directory = "./";
-            let directory_arg_idx = args.iter().position(|arg| arg == "directory" || arg == "--directory");
-
-            if directory_arg_idx.is_some() && directory_arg_idx.unwrap() < args.len() {
-                directory = &args[directory_arg_idx.unwrap() + 1];
-            }
-
+            let file_name = parse_file_name_from_url(&line, "GET /files/");
+            let directory = parse_directory_from_args();
             let file_contents = fs::read_to_string(format!("{}{}", directory, file_name));
 
             match file_contents {
@@ -89,8 +71,46 @@ fn handle_connection(mut stream: TcpStream) {
                 Err(_) => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
             }
         }
+        line if line.starts_with("POST /files/") && line.ends_with("HTTP/1.1") => {
+            let file_name = parse_file_name_from_url(&line, "POST /files/");
+            let directory = parse_directory_from_args();
+            let content_length = request.iter().find(|x| x.contains("Content-Length"));
+
+            if content_length.is_none() {
+                "HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string()
+            } else {
+                let content_length = content_length.unwrap().split("Content-Length: ").nth(1).unwrap().parse::<usize>().unwrap();
+                let body = &request[request.len() - 1][0..content_length];
+
+                if let Err(_) = fs::write(format!("{}{}", directory, file_name), body) {
+                    "HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string()
+                } else {
+                    "HTTP/1.1 201 Created\r\n\r\n".to_string()
+                }
+            }
+        }
         _ => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
     };
 
     stream.write_all(response_line.as_bytes()).unwrap();
+}
+
+fn parse_directory_from_args() -> String {
+    let args: Vec<String> = env::args().collect();
+    let mut directory = String::from("./");
+    let directory_arg_idx = args.iter().position(|arg| arg == "directory" || arg == "--directory");
+
+    if directory_arg_idx.is_some() && directory_arg_idx.unwrap() < args.len() {
+        directory = String::from(&args[directory_arg_idx.unwrap() + 1]);
+    }
+
+    directory
+}
+
+fn parse_file_name_from_url(line: &str, prefix: &str) -> String {
+    let suffix = "HTTP/1.1";
+    let start = prefix.len();
+    let end = line.len() - suffix.len() - 1;
+
+    String::from(&line[start..end])
 }
