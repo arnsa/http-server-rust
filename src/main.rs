@@ -1,3 +1,4 @@
+use std::{env, fs};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
@@ -62,6 +63,32 @@ fn handle_connection(mut stream: TcpStream) {
 
             format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{echo_str}")
         },
+        line if line.starts_with("GET /files/") && line.ends_with("HTTP/1.1") => {
+            let prefix = "GET /files/";
+            let suffix = "HTTP/1.1";
+            let start = prefix.len();
+            let end = line.len() - suffix.len() - 1;
+            let file_name = &line[start..end];
+
+            let args: Vec<String> = env::args().collect();
+            let mut directory = ".";
+            let directory_arg_idx = args.iter().position(|arg| arg == "directory");
+
+            if directory_arg_idx.is_some() && directory_arg_idx.unwrap() < args.len() {
+                directory = &args[directory_arg_idx.unwrap() + 1];
+            }
+
+            let file_contents = fs::read_to_string(format!("{}/{}", directory, file_name));
+
+            match file_contents {
+                Ok(contents) => {
+                    let length = contents.len();
+
+                    format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{contents}")
+                },
+                Err(_) => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
+            }
+        }
         _ => "HTTP/1.1 404 Not Found\r\n\r\n".to_string()
     };
 
