@@ -1,10 +1,11 @@
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::str;
-use std::thread;
-use std::{env, fs};
+use flate2::{write::GzEncoder, Compression};
+use std::{
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    str,
+    thread,
+    {env, fs},
+};
 
 fn main() {
     let mut threads = Vec::new();
