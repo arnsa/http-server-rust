@@ -7,7 +7,7 @@ use std::{
     {env, fs},
 };
 
-use codecrafters_http_server::Request;
+use codecrafters_http_server::{Method, Request};
 
 fn main() {
     let mut threads = Vec::new();
@@ -34,72 +34,82 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let request = Request::new(&mut stream).unwrap();
 
-    let (response_line, data) = match &request.request_line[..] {
-        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK\r\n\r\n".to_string(), None),
-        "GET /user-agent HTTP/1.1" => {
-            if request.user_agent.is_none() {
-                return;
-            }
+    let (response_line, data) = match &request.method.unwrap() {
+        Method::GET => {
+            match &request.url.unwrap()[..] {
+                "/" => (format!("{} 200 OK\r\n\r\n", request.http_version).to_string(), None),
+                "/user-agent" => {
+                    if request.user_agent.is_none() {
+                        return;
+                    }
 
-            let user_agent = request.user_agent.unwrap();
-            let length = user_agent.len();
+                    let user_agent = request.user_agent.unwrap();
+                    let length = user_agent.len();
 
-            (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}"), None)
-        }
-        line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
-            let echo_str = parse_file_name_from_url(&line, "GET /echo/");
-            let mut length = echo_str.len();
-            let mut content_encoding = String::from("\r\n");
+                    (format!("{} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}", request.http_version), None)
+                }
+                url if url.starts_with("/echo/") => {
+                    let echo_str = parse_file_name_from_url(&url, "/echo/");
+                    let mut length = echo_str.len();
+                    let mut content_encoding = String::from("\r\n");
 
-            match request.accept_encoding {
-                Some(encoding) => {
-                    if encoding.contains("gzip") {
-                        let mut encoder = GzEncoder::new(vec![], Compression::default());
-                        let _ = encoder.write_all(&echo_str.as_bytes());
-                        let compressed_data = encoder.finish().unwrap();
+                    match request.accept_encoding {
+                        Some(encoding) => {
+                            if encoding.contains("gzip") {
+                                let mut encoder = GzEncoder::new(vec![], Compression::default());
+                                let _ = encoder.write_all(&echo_str.as_bytes());
+                                let compressed_data = encoder.finish().unwrap();
 
-                        length = compressed_data.len();
-                        content_encoding = format!("\r\nContent-Encoding: gzip\r\n");
+                                length = compressed_data.len();
+                                content_encoding = format!("\r\nContent-Encoding: gzip\r\n");
 
-                        (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n"), Some(compressed_data))
-                    } else {
-                        (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}"), None)
+                                (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n", request.http_version), Some(compressed_data))
+                            } else {
+                                (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}", request.http_version), None)
+                            }
+                        }
+                        None => (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}", request.http_version), None),
                     }
                 }
-                None => (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}"), None),
-            }
-        }
-        line if line.starts_with("GET /files/") && line.ends_with("HTTP/1.1") => {
-            let file_name = parse_file_name_from_url(&line, "GET /files/");
-            let directory = parse_directory_from_args();
-            let file_contents = fs::read_to_string(format!("{}{}", directory, file_name));
+                url if url.starts_with("/files/") => {
+                    let file_name = parse_file_name_from_url(&url, "/files/");
+                    let directory = parse_directory_from_args();
+                    let file_contents = fs::read_to_string(format!("{}{}", directory, file_name));
 
-            match file_contents {
-                Ok(contents) => {
-                    let length = contents.len();
+                    match file_contents {
+                        Ok(contents) => {
+                            let length = contents.len();
 
-                    (
-                        format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n{contents}"),
-                        None
-                    )
+                            (
+                                format!("{} 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n{contents}", request.http_version),
+                                None
+                            )
+                        }
+                        Err(_) => (format!("{} 404 Not Found\r\n\r\n", request.http_version).to_string(), None),
+                    }
                 }
-                Err(_) => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
+                _ => (format!("{} 404 Not Found\r\n\r\n", request.http_version).to_string(), None),
             }
-        }
-        line if line.starts_with("POST /files/") && line.ends_with("HTTP/1.1") => {
-            let file_name = parse_file_name_from_url(&line, "POST /files/");
-            let directory = parse_directory_from_args();
+        },
+        Method::POST => {
+            match &request.url.unwrap()[..] {
+                url if url.starts_with("/files/") => {
+                    let file_name = parse_file_name_from_url(&url, "/files/");
+                    let directory = parse_directory_from_args();
 
-            if let Some(cl) = request.content_length {
-                let body = &request.request[request.request.len() - 1][0..cl];
+                    if let Some(cl) = request.content_length {
+                        let body = &request.request[request.request.len() - 1][0..cl];
 
-                if let Err(_) = fs::write(format!("{}{}", directory, file_name), body) {
-                    ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
-                } else {
-                    ("HTTP/1.1 201 Created\r\n\r\n".to_string(), None)
+                        if let Err(_) = fs::write(format!("{}{}", directory, file_name), body) {
+                            ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
+                        } else {
+                            ("HTTP/1.1 201 Created\r\n\r\n".to_string(), None)
+                        }
+                    } else {
+                        ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
+                    }
                 }
-            } else {
-                ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
+                _ => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
             }
         }
         _ => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
@@ -126,10 +136,6 @@ fn parse_directory_from_args() -> String {
     directory
 }
 
-fn parse_file_name_from_url(line: &str, prefix: &str) -> String {
-    let suffix = "HTTP/1.1";
-    let start = prefix.len();
-    let end = line.len() - suffix.len() - 1;
-
-    String::from(&line[start..end])
+fn parse_file_name_from_url(url: &str, prefix: &str) -> String {
+    String::from(&url[prefix.len()..url.len()])
 }
