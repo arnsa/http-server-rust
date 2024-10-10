@@ -1,4 +1,6 @@
+mod http;
 mod request;
+mod response;
 
 use flate2::{write::GzEncoder, Compression};
 use std::{
@@ -9,7 +11,9 @@ use std::{
     {env, fs},
 };
 
-use request::{Method, Request};
+use response::Response;
+use request::Request;
+use http::{HttpCode, HttpHeader, Method};
 fn main() {
     let mut threads = Vec::new();
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
@@ -38,7 +42,13 @@ fn handle_connection(mut stream: TcpStream) {
     let (response_line, data) = match &request.method.unwrap() {
         Method::GET => {
             match &request.url.unwrap()[..] {
-                "/" => (format!("{} 200 OK\r\n\r\n", request.http_version).to_string(), None),
+                "/" => (Response {
+                    status_code: HttpCode::Ok,
+                    status_text: HttpCode::Ok.to_string(),
+                    http_version: request.http_version,
+                    body: None,
+                    headers: None
+                }.to_string(), None),
                 "/user-agent" => {
                     if request.user_agent.is_none() {
                         return;
@@ -46,13 +56,21 @@ fn handle_connection(mut stream: TcpStream) {
 
                     let user_agent = request.user_agent.unwrap();
                     let length = user_agent.len();
+                    let headers = Some(Vec::from([
+                        HttpHeader::ContentType("text/plain".to_string()),
+                        HttpHeader::ContentLength(length)
+                    ]));
 
-                    (format!("{} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}", request.http_version), None)
+                    (Response {
+                        status_code: HttpCode::Ok,
+                        status_text: HttpCode::Ok.to_string(),
+                        http_version: request.http_version,
+                        headers,
+                        body: Some(user_agent),
+                    }.to_string(), None)
                 }
                 url if url.starts_with("/echo/") => {
                     let echo_str = parse_file_name_from_url(&url, "/echo/");
-                    let mut length = echo_str.len();
-                    let mut content_encoding = String::from("\r\n");
 
                     match request.accept_encoding {
                         Some(encoding) => {
@@ -61,15 +79,51 @@ fn handle_connection(mut stream: TcpStream) {
                                 let _ = encoder.write_all(&echo_str.as_bytes());
                                 let compressed_data = encoder.finish().unwrap();
 
-                                length = compressed_data.len();
-                                content_encoding = format!("\r\nContent-Encoding: gzip\r\n");
+                                let headers = Some(Vec::from([
+                                    HttpHeader::ContentType("text/plain".to_string()),
+                                    HttpHeader::ContentEncoding("gzip".to_string()),
+                                    HttpHeader::ContentLength(compressed_data.len()),
+                                ]));
 
-                                (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n", request.http_version), Some(compressed_data))
+                                (Response {
+                                    status_code: HttpCode::Ok,
+                                    status_text: HttpCode::Ok.to_string(),
+                                    http_version: request.http_version,
+                                    headers,
+                                    body: None,
+                                }.to_string(), Some(compressed_data))
                             } else {
-                                (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}", request.http_version), None)
+                                let length = echo_str.len();
+                                let headers = Some(Vec::from([
+                                    HttpHeader::ContentType("text/plain".to_string()),
+                                    HttpHeader::ContentLength(length),
+                                ]));
+
+                                (Response {
+                                    status_code: HttpCode::Ok,
+                                    status_text: HttpCode::Ok.to_string(),
+                                    http_version: request.http_version,
+                                    headers,
+                                    body: Some(echo_str),
+                                }.to_string(), None)
                             }
                         }
-                        None => (format!("{} 200 OK\r\nContent-Type: text/plain{content_encoding}Content-Length: {length}\r\n\r\n{echo_str}", request.http_version), None),
+                        None => {
+                            let length = echo_str.len();
+                            let headers = Some(Vec::from([
+                                HttpHeader::ContentType("text/plain".to_string()),
+                                HttpHeader::ContentEncoding("gzip".to_string()),
+                                HttpHeader::ContentLength(length),
+                            ]));
+
+                            (Response {
+                                status_code: HttpCode::Ok,
+                                status_text: HttpCode::Ok.to_string(),
+                                http_version: request.http_version,
+                                headers,
+                                body: Some(echo_str),
+                            }.to_string(), None)
+                        },
                     }
                 }
                 url if url.starts_with("/files/") => {
@@ -80,16 +134,35 @@ fn handle_connection(mut stream: TcpStream) {
                     match file_contents {
                         Ok(contents) => {
                             let length = contents.len();
+                            let headers = Some(Vec::from([
+                                HttpHeader::ContentType("application/octet-stream".to_string()),
+                                HttpHeader::ContentLength(length),
+                            ]));
 
-                            (
-                                format!("{} 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n{contents}", request.http_version),
-                                None
-                            )
+                            (Response {
+                                status_code: HttpCode::Ok,
+                                status_text: HttpCode::Ok.to_string(),
+                                http_version: request.http_version,
+                                headers,
+                                body: Some(contents),
+                            }.to_string(), None)
                         }
-                        Err(_) => (format!("{} 404 Not Found\r\n\r\n", request.http_version).to_string(), None),
+                        Err(_) => (Response {
+                            status_code: HttpCode::NotFound,
+                            status_text: HttpCode::NotFound.to_string(),
+                            http_version: request.http_version,
+                            headers: None,
+                            body: None,
+                        }.to_string(), None),
                     }
                 }
-                _ => (format!("{} 404 Not Found\r\n\r\n", request.http_version).to_string(), None),
+                _ => (Response {
+                    status_code: HttpCode::NotFound,
+                    status_text: HttpCode::NotFound.to_string(),
+                    http_version: request.http_version,
+                    headers: None,
+                    body: None,
+                }.to_string(), None),
             }
         },
         Method::POST => {
@@ -102,18 +175,48 @@ fn handle_connection(mut stream: TcpStream) {
                         let body = &request.request[request.request.len() - 1][0..cl];
 
                         if let Err(_) = fs::write(format!("{}{}", directory, file_name), body) {
-                            ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
+                            (Response {
+                                status_code: HttpCode::InternalServerError,
+                                status_text: HttpCode::InternalServerError.to_string(),
+                                http_version: request.http_version,
+                                headers: None,
+                                body: None,
+                            }.to_string(), None)
                         } else {
-                            ("HTTP/1.1 201 Created\r\n\r\n".to_string(), None)
+                            (Response {
+                                status_code: HttpCode::Created,
+                                status_text: HttpCode::Created.to_string(),
+                                http_version: request.http_version,
+                                headers: None,
+                                body: None,
+                            }.to_string(), None)
                         }
                     } else {
-                        ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
+                        (Response {
+                            status_code: HttpCode::InternalServerError,
+                            status_text: HttpCode::InternalServerError.to_string(),
+                            http_version: request.http_version,
+                            headers: None,
+                            body: None,
+                        }.to_string(), None)
                     }
                 }
-                _ => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
+                _ => (Response {
+                    status_code: HttpCode::NotFound,
+                    status_text: HttpCode::NotFound.to_string(),
+                    http_version: request.http_version,
+                    headers: None,
+                    body: None,
+                }.to_string(), None),
             }
         }
-        _ => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
+        _ => (Response {
+            status_code: HttpCode::NotFound,
+            status_text: HttpCode::NotFound.to_string(),
+            http_version: request.http_version,
+            headers: None,
+            body: None,
+        }.to_string(), None),
     };
 
     stream.write_all(response_line.as_bytes()).unwrap();

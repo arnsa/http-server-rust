@@ -3,29 +3,7 @@ use std::{
   net::TcpStream,
   str::{self, FromStr},
 };
-
-pub enum Method {
-  GET,
-  POST,
-  PUT,
-  PATCH,
-  DELETE
-}
-
-impl FromStr for Method {
-  type Err = &'static str;
-
-  fn from_str(s: &str) -> Result<Method, Self::Err> {
-      match s {
-          "GET" => Ok(Method::GET),
-          "POST" => Ok(Method::POST),
-          "PUT" => Ok(Method::PUT),
-          "PATCH" => Ok(Method::PATCH),
-          "DELETE" => Ok(Method::DELETE),
-          _ => Err("Unknown HTTP method"),
-      }
-  }
-}
+use crate::http::Method;
 
 pub struct Request {
   pub request: Vec<String>,
