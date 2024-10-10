@@ -1,7 +1,7 @@
 use flate2::{write::GzEncoder, Compression};
 use std::{fs, io::Write};
 
-use crate::http::{HttpCode, HttpHeader, Method};
+use crate::http::{HttpCode, HttpHeader, HttpMethod};
 use crate::request::Request;
 use crate::response::Response;
 use crate::utils::{
@@ -11,7 +11,7 @@ use crate::utils::{
 
 pub fn handle_route(request: &Request) -> (String, Option<Vec<u8>>) {
     match &request.method.as_ref().unwrap() {
-        Method::GET => match &request.url.as_ref().unwrap()[..] {
+        HttpMethod::GET => match &request.url.as_ref().unwrap()[..] {
             "/" => (
                 Response {
                     status_code: HttpCode::Ok,
@@ -162,7 +162,7 @@ pub fn handle_route(request: &Request) -> (String, Option<Vec<u8>>) {
                 None,
             ),
         },
-        Method::POST => match &request.url.as_ref().unwrap()[..] {
+        HttpMethod::POST => match &request.url.as_ref().unwrap()[..] {
             url if url.starts_with("/files/") => {
                 let file_name = parse_file_name_from_url(&url, "/files/");
                 let directory = parse_directory_from_args();

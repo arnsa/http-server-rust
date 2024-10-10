@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::{self, FromStr}};
 
-pub enum Method {
+pub enum HttpMethod {
     GET,
     POST,
     PUT,
@@ -8,16 +8,16 @@ pub enum Method {
     DELETE,
 }
 
-impl FromStr for Method {
+impl FromStr for HttpMethod {
     type Err = &'static str;
 
-    fn from_str(s: &str) -> Result<Method, Self::Err> {
+    fn from_str(s: &str) -> Result<HttpMethod, Self::Err> {
         match s {
-            "GET" => Ok(Method::GET),
-            "POST" => Ok(Method::POST),
-            "PUT" => Ok(Method::PUT),
-            "PATCH" => Ok(Method::PATCH),
-            "DELETE" => Ok(Method::DELETE),
+            "GET" => Ok(HttpMethod::GET),
+            "POST" => Ok(HttpMethod::POST),
+            "PUT" => Ok(HttpMethod::PUT),
+            "PATCH" => Ok(HttpMethod::PATCH),
+            "DELETE" => Ok(HttpMethod::DELETE),
             _ => Err("Unknown HTTP method"),
         }
     }

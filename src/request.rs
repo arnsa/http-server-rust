@@ -3,14 +3,14 @@ use std::{
   net::TcpStream,
   str::{self, FromStr},
 };
-use crate::http::Method;
+use crate::http::HttpMethod;
 
 pub struct Request {
   pub request: Vec<String>,
   pub user_agent: Option<String>,
   pub accept_encoding: Option<String>,
   pub content_length: Option<usize>,
-  pub method: Option<Method>,
+  pub method: Option<HttpMethod>,
   pub url: Option<String>,
   pub http_version: String,
 }
@@ -75,8 +75,8 @@ impl Request {
           .and_then(|cl| cl.parse::<usize>().ok())
   }
 
-  fn get_method(request_line: &String) -> Option<Method> {
-      request_line.split(" ").nth(0).and_then(|s| Method::from_str(s).ok())
+  fn get_method(request_line: &String) -> Option<HttpMethod> {
+      request_line.split(" ").nth(0).and_then(|s| HttpMethod::from_str(s).ok())
   }
 
   fn get_url(request_line: &String) -> Option<String> {
