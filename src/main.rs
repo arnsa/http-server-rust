@@ -1,3 +1,5 @@
+mod request;
+
 use flate2::{write::GzEncoder, Compression};
 use std::{
     io::Write,
@@ -7,8 +9,7 @@ use std::{
     {env, fs},
 };
 
-use codecrafters_http_server::{Method, Request};
-
+use request::{Method, Request};
 fn main() {
     let mut threads = Vec::new();
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
