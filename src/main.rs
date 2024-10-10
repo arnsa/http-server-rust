@@ -1,11 +1,13 @@
 use flate2::{write::GzEncoder, Compression};
 use std::{
-    io::{Read, Write},
+    io::Write,
     net::{TcpListener, TcpStream},
     str,
     thread,
     {env, fs},
 };
+
+use codecrafters_http_server::Request;
 
 fn main() {
     let mut threads = Vec::new();
@@ -30,41 +32,27 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let mut buffer = [0; 1024];
-    let _ = stream.read(&mut buffer);
-    let request = String::from_utf8_lossy(&buffer);
-    let request = request.split("\r\n").collect::<Vec<&str>>();
+    let request = Request::new(&mut stream).unwrap();
 
-    if request.len() == 0 {
-        return;
-    }
-
-    let request_line = request[0];
-
-    let (response_line, data) = match request_line {
+    let (response_line, data) = match &request.request_line[..] {
         "GET / HTTP/1.1" => ("HTTP/1.1 200 OK\r\n\r\n".to_string(), None),
         "GET /user-agent HTTP/1.1" => {
-            let user_agent = request.iter().find(|line| line.contains("User-Agent:"));
-
-            if user_agent.is_none() {
+            if request.user_agent.is_none() {
                 return;
             }
 
-            let response = user_agent.unwrap().replace("User-Agent: ", "");
-            let length = response.len();
+            let user_agent = request.user_agent.unwrap();
+            let length = user_agent.len();
 
-            (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{response}"), None)
+            (format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n{user_agent}"), None)
         }
         line if line.starts_with("GET /echo/") && line.ends_with("HTTP/1.1") => {
             let echo_str = parse_file_name_from_url(&line, "GET /echo/");
-            let accept_encoding = request.iter().find(|x| x.contains("Accept-Encoding"));
             let mut length = echo_str.len();
             let mut content_encoding = String::from("\r\n");
 
-            match accept_encoding {
+            match request.accept_encoding {
                 Some(encoding) => {
-                    let encoding = encoding.split("Accept-Encoding: ").nth(1).unwrap();
-
                     if encoding.contains("gzip") {
                         let mut encoder = GzEncoder::new(vec![], Compression::default());
                         let _ = encoder.write_all(&echo_str.as_bytes());
@@ -101,25 +89,17 @@ fn handle_connection(mut stream: TcpStream) {
         line if line.starts_with("POST /files/") && line.ends_with("HTTP/1.1") => {
             let file_name = parse_file_name_from_url(&line, "POST /files/");
             let directory = parse_directory_from_args();
-            let content_length = request.iter().find(|x| x.contains("Content-Length"));
 
-            if content_length.is_none() {
-                ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
-            } else {
-                let content_length = content_length
-                    .unwrap()
-                    .split("Content-Length: ")
-                    .nth(1)
-                    .unwrap()
-                    .parse::<usize>()
-                    .unwrap();
-                let body = &request[request.len() - 1][0..content_length];
+            if let Some(cl) = request.content_length {
+                let body = &request.request[request.request.len() - 1][0..cl];
 
                 if let Err(_) = fs::write(format!("{}{}", directory, file_name), body) {
                     ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
                 } else {
                     ("HTTP/1.1 201 Created\r\n\r\n".to_string(), None)
                 }
+            } else {
+                ("HTTP/1.1 500 An Error Ocurred\r\n\r\n".to_string(), None)
             }
         }
         _ => ("HTTP/1.1 404 Not Found\r\n\r\n".to_string(), None),
