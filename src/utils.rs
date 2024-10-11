@@ -1,4 +1,4 @@
-use std::{env, str};
+use std::env;
 
 pub fn parse_directory_from_args() -> String {
     let args: Vec<String> = env::args().collect();
@@ -12,8 +12,4 @@ pub fn parse_directory_from_args() -> String {
     }
 
     directory
-}
-
-pub fn parse_file_name_from_url(url: &str, prefix: &str) -> String {
-    String::from(&url[prefix.len()..url.len()])
 }

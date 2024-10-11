@@ -3,6 +3,7 @@ mod request;
 mod response;
 mod router;
 mod utils;
+mod url;
 
 use std::{
     io::Write,
