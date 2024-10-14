@@ -1,10 +1,12 @@
 use crate::http::HttpMethod;
 use crate::url::Url;
+
 use std::{
     io::Read,
     net::TcpStream,
-    str::{self, FromStr},
+    str::FromStr,
 };
+use anyhow::{anyhow, Result};
 
 pub struct Request {
     pub request: Vec<String>,
@@ -17,7 +19,7 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn new(stream: &mut TcpStream) -> Result<Request, &'static str> {
+    pub fn new(stream: &mut TcpStream) -> Result<Request> {
         let mut buffer = [0; 1024];
         let _ = stream.read(&mut buffer);
 
@@ -29,11 +31,7 @@ impl Request {
         let content_length = Self::get_content_length(&request);
         let method = Self::get_method(&request_line);
         let url_str = Self::get_url(&request_line);
-        let url = if url_str.is_some() {
-            Some(Url::new(&url_str.unwrap().as_str()))
-        } else {
-            None
-        };
+        let url = url_str.as_ref().map(|s| Url::new(s.as_str()));
         let http_version = Self::get_http_version(&request_line);
 
         Ok(Request {
@@ -47,7 +45,7 @@ impl Request {
         })
     }
 
-    fn get_request(buffer: &[u8]) -> Result<Vec<String>, &'static str> {
+    fn get_request(buffer: &[u8]) -> Result<Vec<String>> {
         let request = String::from_utf8_lossy(buffer);
         let request = request
             .split("\r\n")
@@ -55,7 +53,7 @@ impl Request {
             .collect::<Vec<String>>();
 
         if request.len() == 0 {
-            Err("Error: request is empty")
+            Err(anyhow!("Error: request is empty"))
         } else {
             Ok(request)
         }
