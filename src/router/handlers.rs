@@ -1,39 +1,16 @@
+use crate::http::code::HttpCode;
+use crate::http::header::HttpHeader;
+use crate::request::builder::Request;
+use crate::response::builder::Response;
+use crate::utils::parse_directory_from_args;
 use anyhow::{self, Context};
 use flate2::{write::GzEncoder, Compression};
 use std::collections::HashMap;
 use std::{fs, io::Write};
 
-use crate::http::{HttpCode, HttpHeader, HttpMethod};
-use crate::request::Request;
-use crate::response::Response;
-use crate::utils::parse_directory_from_args;
+use super::models::RouteReturn;
 
-enum Paths {
-    Root,
-    UserAgent,
-    Echo,
-    Files,
-}
-
-impl Paths {
-    pub fn as_str(&self) -> &str {
-        match self {
-            &Paths::Root => "/",
-            &Paths::UserAgent => "/user-agent",
-            &Paths::Echo => "/echo/:str",
-            &Paths::Files => "/files/:file_name",
-        }
-    }
-}
-
-type RouteReturn = Result<(String, Option<Vec<u8>>), anyhow::Error>;
-
-struct Route {
-    path: String,
-    handler: fn(&Request, HashMap<String, String>) -> RouteReturn,
-}
-
-fn handle_get_root(request: &Request, _: HashMap<String, String>) -> RouteReturn {
+pub fn handle_get_root(request: &Request, _: HashMap<String, String>) -> RouteReturn {
     Ok((
         Response {
             status_code: HttpCode::Ok,
@@ -47,7 +24,7 @@ fn handle_get_root(request: &Request, _: HashMap<String, String>) -> RouteReturn
     ))
 }
 
-fn handle_get_user_agent(request: &Request, _: HashMap<String, String>) -> RouteReturn {
+pub fn handle_get_user_agent(request: &Request, _: HashMap<String, String>) -> RouteReturn {
     let user_agent = &request.user_agent;
     let length = user_agent.as_ref().map(|ua| ua.len()).unwrap_or(0);
     let headers = Some(Vec::from([
@@ -68,7 +45,7 @@ fn handle_get_user_agent(request: &Request, _: HashMap<String, String>) -> Route
     ))
 }
 
-fn handle_get_echo(request: &Request, params: HashMap<String, String>) -> RouteReturn {
+pub fn handle_get_echo(request: &Request, params: HashMap<String, String>) -> RouteReturn {
     let echo_str = params
         .get("str")
         .context("Missing 'str' parameter in request parameters")?
@@ -141,7 +118,7 @@ fn handle_get_echo(request: &Request, params: HashMap<String, String>) -> RouteR
     }
 }
 
-fn handle_get_files(request: &Request, params: HashMap<String, String>) -> RouteReturn {
+pub fn handle_get_files(request: &Request, params: HashMap<String, String>) -> RouteReturn {
     let file_name = params
         .get("file_name")
         .context("Missing file_name parameter")?
@@ -185,7 +162,7 @@ fn handle_get_files(request: &Request, params: HashMap<String, String>) -> Route
     }
 }
 
-fn handle_post_files(request: &Request, params: HashMap<String, String>) -> RouteReturn {
+pub fn handle_post_files(request: &Request, params: HashMap<String, String>) -> RouteReturn {
     let file_name = params
         .get("file_name")
         .context("Missing file_name parameter")?
@@ -233,76 +210,4 @@ fn handle_post_files(request: &Request, params: HashMap<String, String>) -> Rout
             None,
         ));
     }
-}
-
-pub fn handle_route(request: &Request) -> RouteReturn {
-    let method = request.method.as_ref().context("Failed to get HTTP method")?;
-
-    if let Some(url) = &request.url {
-        match &method {
-            HttpMethod::GET => {
-                let routes = Vec::from([
-                    Route {
-                        path: Paths::Root.as_str().to_string(),
-                        handler: handle_get_root,
-                    },
-                    Route {
-                        path: Paths::UserAgent.as_str().to_string(),
-                        handler: handle_get_user_agent,
-                    },
-                    Route {
-                        path: Paths::Echo.as_str().to_string(),
-                        handler: handle_get_echo,
-                    },
-                    Route {
-                        path: Paths::Files.as_str().to_string(),
-                        handler: handle_get_files,
-                    },
-                ]);
-
-                for route in routes {
-                    if let Some(params) = url.match_path(&route.path) {
-                        return (route.handler)(request, params);
-                    }
-                }
-            }
-            HttpMethod::POST => {
-                let routes = Vec::from([Route {
-                    path: Paths::Files.as_str().to_string(),
-                    handler: handle_post_files,
-                }]);
-
-                for route in routes {
-                    if let Some(params) = url.match_path(&route.path) {
-                        return (route.handler)(request, params);
-                    }
-                }
-            }
-            _ => {
-                return Ok((
-                    Response {
-                        status_code: HttpCode::NotFound,
-                        status_text: HttpCode::NotFound.to_string(),
-                        http_version: request.http_version.to_string(),
-                        headers: None,
-                        body: None,
-                    }
-                    .to_string(),
-                    None,
-                ))
-            }
-        }
-    }
-
-    return Ok((
-        Response {
-            status_code: HttpCode::NotFound,
-            status_text: HttpCode::NotFound.to_string(),
-            http_version: request.http_version.to_string(),
-            headers: None,
-            body: None,
-        }
-        .to_string(),
-        None,
-    ));
 }

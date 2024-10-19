@@ -1,12 +1,7 @@
-use crate::http::HttpMethod;
-use crate::url::Url;
+use crate::{http::method::HttpMethod, url::Url};
 
-use std::{
-    io::Read,
-    net::TcpStream,
-    str::FromStr,
-};
 use anyhow::{anyhow, Result};
+use std::{io::Read, net::TcpStream, str::FromStr};
 
 pub struct Request {
     pub request: Vec<String>,

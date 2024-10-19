@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::http::{HttpCode, HttpHeader};
+use crate::http::{code::HttpCode, header::HttpHeader};
 
 pub struct Response {
     pub status_code: HttpCode,

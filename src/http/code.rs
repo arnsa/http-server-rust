@@ -1,27 +1,4 @@
-use std::{fmt::Display, str::{self, FromStr}};
-
-pub enum HttpMethod {
-    GET,
-    POST,
-    PUT,
-    PATCH,
-    DELETE,
-}
-
-impl FromStr for HttpMethod {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<HttpMethod, Self::Err> {
-        match s {
-            "GET" => Ok(HttpMethod::GET),
-            "POST" => Ok(HttpMethod::POST),
-            "PUT" => Ok(HttpMethod::PUT),
-            "PATCH" => Ok(HttpMethod::PATCH),
-            "DELETE" => Ok(HttpMethod::DELETE),
-            _ => Err("Unknown HTTP method"),
-        }
-    }
-}
+use std::fmt::Display;
 
 #[allow(dead_code)]
 pub enum HttpCode {
@@ -87,21 +64,5 @@ impl Display for HttpCode {
             HttpCode::ServiceUnavailable => "Service Unavailable",
         };
         write!(f, "{}", result)
-    }
-}
-
-pub enum HttpHeader {
-    ContentType(String),
-    ContentLength(usize),
-    ContentEncoding(String),
-}
-
-impl Display for HttpHeader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HttpHeader::ContentType(value) => write!(f, "Content-Type: {}", value),
-            HttpHeader::ContentLength(value) => write!(f, "Content-Length: {}", value),
-            HttpHeader::ContentEncoding(value) => write!(f, "Content-Encoding: {}", value),
-        }
     }
 }
