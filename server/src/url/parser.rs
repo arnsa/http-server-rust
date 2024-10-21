@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[derive(PartialEq, Debug)]
 #[allow(dead_code)]
 pub struct Url {
     pub path: String,
