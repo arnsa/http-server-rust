@@ -1,8 +1,9 @@
 use std::{io::Write, net::TcpStream};
 
 use anyhow::{Context, Result};
+use server::{http::code::HttpCode, request::Request, response::Response};
 
-use crate::{http::code::HttpCode, request::Request, response::Response, router};
+use crate::router;
 
 pub fn handle_tcp_connection(mut stream: TcpStream) -> Result<()> {
     let request = Request::new(&mut stream).context("Failed to parse the request")?;

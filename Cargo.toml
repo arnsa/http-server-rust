@@ -1,9 +1,6 @@
-[package]
-name = "http-server"
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.80"
-
-[dependencies]
-anyhow = "1.0.90"
-flate2 = "1.0"
+[workspace]
+members = [
+    "app",
+    "server"
+]
+resolver = "2"

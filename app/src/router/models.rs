@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::request::Request;
+use server::request::Request;
 
 pub enum Paths {
     Root,

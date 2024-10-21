@@ -1,10 +1,10 @@
-use crate::http::code::HttpCode;
-use crate::http::header::HttpHeader;
-use crate::request::builder::Request;
-use crate::response::builder::Response;
 use crate::utils::parse_directory_from_args;
 use anyhow::{self, Context};
 use flate2::{write::GzEncoder, Compression};
+use server::http::code::HttpCode;
+use server::http::header::HttpHeader;
+use server::request::Request;
+use server::response::Response;
 use std::collections::HashMap;
 use std::{fs, io::Write};
 
@@ -99,19 +99,20 @@ pub fn handle_get_echo(request: &Request, params: HashMap<String, String>) -> Ro
             let length = echo_str.len();
             let headers = Some(Vec::from([
                 HttpHeader::ContentType("text/plain".to_string()),
-                HttpHeader::ContentEncoding("gzip".to_string()),
                 HttpHeader::ContentLength(length),
             ]));
 
+            let res = Response {
+                status_code: HttpCode::Ok,
+                status_text: HttpCode::Ok.to_string(),
+                http_version: request.http_version.to_string(),
+                headers,
+                body: Some(echo_str.to_string()),
+            }
+            .to_string();
+
             return Ok((
-                Response {
-                    status_code: HttpCode::Ok,
-                    status_text: HttpCode::Ok.to_string(),
-                    http_version: request.http_version.to_string(),
-                    headers,
-                    body: Some(echo_str.to_string()),
-                }
-                .to_string(),
+                res,
                 None,
             ));
         }

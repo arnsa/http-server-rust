@@ -1,5 +1,9 @@
-use http_server::utils::handle_tcp_connection;
+mod router;
+mod utils;
+
 use std::{net::TcpListener, thread};
+
+use utils::handle_tcp_connection;
 
 fn main() {
     let mut threads = Vec::new();

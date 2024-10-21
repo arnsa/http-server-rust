@@ -1,10 +1,5 @@
 use anyhow::Context;
-
-use crate::{
-    http::{code::HttpCode, method::HttpMethod},
-    request::Request,
-    response::Response,
-};
+use server::{http::{code::HttpCode, method::HttpMethod}, request::Request, response::Response};
 
 use super::{
     handlers::{

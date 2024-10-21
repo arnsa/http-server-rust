@@ -1,0 +1,10 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+
+[dependencies]
+server = { path = "../server" }
+flate2 = "1.0"
+anyhow = "1.0.90"
