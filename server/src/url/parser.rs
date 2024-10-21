@@ -1,13 +1,91 @@
+//! # URL Module
+//!
+//! This module defines the `Url` struct, which represents a parsed URL from an HTTP request.
+//! It provides functionality to parse the URL path and query parameters, as well as to match
+//! the URL path against a specified pattern to extract dynamic segments.
+//!
+//! ## Overview
+//!
+//! The `Url` struct encapsulates the following components of a URL:
+//!
+//! - **Path:** The hierarchical part of the URL, indicating the resource's location.
+//! - **Query Parameters:** Optional key-value pairs that provide additional information to the server.
+//!
+//! Additionally, the module offers a method to match the URL path against a pattern, allowing
+//! for the extraction of dynamic segments (e.g., IDs) from the path.
+//!
+//! ## Usage
+//!
+//! To create a `Url` instance, use the `Url::new` method by passing the URL string from the HTTP request.
+//! This method parses the URL into its path and query parameters.
+//!
+//! ```rust
+//! use server::url::parser::Url;
+//!
+//! let url = Url::new("/search?q=rust&sort=asc");
+//! assert_eq!(url.path, "/search");
+//! assert_eq!(url.query, Some({
+//!     let mut map = std::collections::HashMap::new();
+//!     map.insert("q".to_string(), "rust".to_string());
+//!     map.insert("sort".to_string(), "asc".to_string());
+//!     map
+//! }));
+//! ```
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 
-#[derive(PartialEq, Debug)]
-#[allow(dead_code)]
+/// Represents a parsed URL from an HTTP request.
+///
+/// The `Url` struct contains the path and optional query parameters extracted from the URL.
+#[derive(Debug, PartialEq)]
 pub struct Url {
+    /// The path component of the URL (e.g., `/home`, `/user/123`).
     pub path: String,
+
+    /// The query parameters of the URL as key-value pairs, if present.
+    ///
+    /// For example, in `/search?q=rust&sort=asc`, the query would be:
+    ///
+    /// ```rust
+    /// use std::collections::HashMap;
+    ///
+    /// let mut query = HashMap::new();
+    /// query.insert("q".to_string(), "rust".to_string());
+    /// query.insert("sort".to_string(), "asc".to_string());
+    /// ```
     pub query: Option<HashMap<String, String>>,
 }
 
 impl Url {
+    /// Constructs a new `Url` by parsing the given URL string.
+    ///
+    /// This method splits the URL into its path and query components. The query string is further
+    /// parsed into key-value pairs and stored in a `HashMap`.
+    ///
+    /// # Parameters
+    ///
+    /// - `url`: A string slice representing the URL to be parsed (e.g., `"/search?q=rust"`).
+    ///
+    /// # Returns
+    ///
+    /// A `Url` instance containing the parsed path and query parameters.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use server::url::parser::Url;
+    /// use std::collections::HashMap;
+    ///
+    /// let url = Url::new("/search?q=rust&sort=asc");
+    /// assert_eq!(url.path, "/search");
+    /// assert_eq!(url.query, Some({
+    ///     let mut map = HashMap::new();
+    ///     map.insert("q".to_string(), "rust".to_string());
+    ///     map.insert("sort".to_string(), "asc".to_string());
+    ///     map
+    /// }));
+    /// ```
     pub fn new(url: &str) -> Url {
         let parts: Vec<&str> = url.splitn(2, '?').collect();
         let path = parts[0].to_string();
@@ -23,6 +101,22 @@ impl Url {
         }
     }
 
+    /// Parses the query string into a `HashMap` of key-value pairs.
+    ///
+    /// This private helper method splits the query string by `&` to separate parameters,
+    /// and then splits each parameter by `=` to obtain keys and values.
+    ///
+    /// # Parameters
+    ///
+    /// - `query`: A string slice representing the query portion of the URL (e.g., `"q=rust&sort=asc"`).
+    ///
+    /// # Returns
+    ///
+    /// A `HashMap<String, String>` containing the parsed query parameters.
+    ///
+    /// # Examples
+    ///
+    /// This method is private and cannot be called outside the `Url` struct.
     fn parse_query(query: &str) -> HashMap<String, String> {
         query
             .split('&')
@@ -32,17 +126,60 @@ impl Url {
                 let value = pair.next()?;
 
                 if key.len() > 0 {
-                    return Some((key.to_string(), value.to_string()));
+                    Some((key.to_string(), value.to_string()))
+                } else {
+                    None
                 }
-
-                None
             })
             .collect()
     }
 
+    /// Matches the URL path against a given pattern and extracts dynamic segments.
+    ///
+    /// The pattern can contain dynamic segments prefixed with `:`, which will capture the corresponding
+    /// part of the URL path as parameters.
+    ///
+    /// # Parameters
+    ///
+    /// - `pattern`: A string slice representing the pattern to match against the URL path (e.g., `"/user/:id"`).
+    ///
+    /// # Returns
+    ///
+    /// - `Some(HashMap<String, String>)`: A map of parameter names to their extracted values if the path matches the pattern.
+    /// - `None`: If the path does not match the pattern.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use server::url::parser::Url;
+    /// use std::collections::HashMap;
+    ///
+    /// let url = Url::new("/user/123/profile/456");
+    /// let pattern = "/user/:user_id/profile/:profile_id";
+    ///
+    /// let params = url.match_path(pattern).unwrap();
+    /// assert_eq!(params.get("user_id").unwrap(), "123");
+    /// assert_eq!(params.get("profile_id").unwrap(), "456");
+    /// ```
+    ///
+    /// ```rust
+    /// use server::url::parser::Url;
+    ///
+    /// let url = Url::new("/about");
+    /// let pattern = "/contact";
+    ///
+    /// assert_eq!(url.match_path(pattern), None);
+    /// ```
     pub fn match_path(&self, pattern: &str) -> Option<HashMap<String, String>> {
-        let url_segments = self.path.split('/').filter(|s| !s.is_empty()).collect::<Vec<&str>>();
-        let pattern_segments = pattern.split('/').filter(|s| !s.is_empty()).collect::<Vec<&str>>();
+        let url_segments = self
+            .path
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>();
+        let pattern_segments = pattern
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>();
 
         if url_segments.len() != pattern_segments.len() {
             return None;
